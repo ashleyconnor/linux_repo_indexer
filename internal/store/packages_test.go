@@ -43,7 +43,7 @@ func newFakeDynamo() *fakeDynamo {
 
 func (f *fakeDynamo) PutItem(_ context.Context, in *dynamodb.PutItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 	f.puts = append(f.puts, in)
-	key := in.Item["pkgkey"].(*types.AttributeValueMemberS).Value
+	key := in.Item["filename"].(*types.AttributeValueMemberS).Value
 	f.items[key] = in.Item
 	return &dynamodb.PutItemOutput{}, nil
 }
@@ -70,7 +70,7 @@ func (f *fakeDynamo) Query(_ context.Context, in *dynamodb.QueryInput, _ ...func
 	out := &dynamodb.QueryOutput{Items: page}
 	if f.queryPos < len(f.pages) {
 		out.LastEvaluatedKey = map[string]types.AttributeValue{
-			"pkgkey": &types.AttributeValueMemberS{Value: "cursor"},
+			"filename": &types.AttributeValueMemberS{Value: "cursor"},
 		}
 	}
 	return out, nil
@@ -241,7 +241,7 @@ func TestPutWritesQueryableAttributes(t *testing.T) {
 	item := dyn.puts[0].Item
 	for _, tt := range []struct{ attr, want string }{
 		{"scope", "deb/main/amd64"},
-		{"pkgkey", "indexer-fixture#1.0.0-1#amd64"},
+		{"filename", "pool/amd64/main/indexer-fixture_1.0.0-1_amd64.deb"},
 		{"name", "indexer-fixture"},
 		{"evr", "1.0.0-1"},
 		{"arch", "amd64"},
@@ -360,7 +360,7 @@ func TestListFollowsPagination(t *testing.T) {
 		t.Fatalf("encodeRecord: %v", err)
 	}
 	item, err := attributevalue.MarshalMap(record{
-		Scope: scope.String(), PkgKey: pkg.Key(), Body: body,
+		Scope: scope.String(), Filename: pkg.Filename, Body: body,
 	})
 	if err != nil {
 		t.Fatalf("MarshalMap: %v", err)
@@ -387,13 +387,13 @@ func TestListFollowsPagination(t *testing.T) {
 	}
 }
 
-func TestDeleteUsesCompositeKey(t *testing.T) {
+func TestDeleteIsKeyedByObject(t *testing.T) {
 	ctx := context.Background()
 	dyn := newFakeDynamo()
 	s := NewPackageStore(dyn, "packages", nil)
 
 	scope := repoconfig.DebPoolScope("main", "amd64")
-	if err := s.Delete(ctx, scope, "indexer-fixture#1.0.0-1#amd64"); err != nil {
+	if err := s.Delete(ctx, scope, "pool/amd64/main/indexer-fixture_1.0.0-1_amd64.deb"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 
@@ -401,8 +401,8 @@ func TestDeleteUsesCompositeKey(t *testing.T) {
 	if got := key["scope"].(*types.AttributeValueMemberS).Value; got != "deb/main/amd64" {
 		t.Errorf("scope key = %q", got)
 	}
-	if got := key["pkgkey"].(*types.AttributeValueMemberS).Value; got != "indexer-fixture#1.0.0-1#amd64" {
-		t.Errorf("pkgkey = %q", got)
+	if got := key["filename"].(*types.AttributeValueMemberS).Value; got != "pool/amd64/main/indexer-fixture_1.0.0-1_amd64.deb" {
+		t.Errorf("filename = %q", got)
 	}
 }
 

@@ -27,8 +27,17 @@ import (
 // change a migration. Compression also matters: an RPM's file list is the bulk
 // of a record and compresses roughly tenfold.
 type record struct {
-	Scope  string `dynamodbav:"scope"`
-	PkgKey string `dynamodbav:"pkgkey"`
+	Scope string `dynamodbav:"scope"`
+
+	// Filename is the sort key: the object's path as the index records it,
+	// which is the full key for a .deb and the base name for a .rpm.
+	//
+	// It is deliberately the object rather than the package's name-version-
+	// architecture. An ObjectRemoved event carries only the S3 key, and an
+	// RPM's epoch does not appear in its filename, so a NEVRA-keyed row could
+	// not be located to delete. Keying by object makes ingest and removal
+	// exactly symmetric, and both idempotent under SQS redelivery.
+	Filename string `dynamodbav:"filename"`
 
 	// Queryable copies, for operators reading the table directly.
 	Name         string `dynamodbav:"name"`
@@ -75,7 +84,7 @@ func NewPackageStore(client DynamoAPI, table string, blobs BlobStore) *PackageSt
 }
 
 // Put writes a package record, replacing any previous record for the same
-// name, version and architecture within the scope.
+// object.
 //
 // It is idempotent, which matters because SQS delivers at least once: an
 // ingest replayed after a partial batch failure must not corrupt the scope.
@@ -85,9 +94,13 @@ func (s *PackageStore) Put(ctx context.Context, scope repoconfig.Scope, pkg *pkg
 		return err
 	}
 
+	if pkg.Filename == "" {
+		return fmt.Errorf("store: %s has no filename, so it has no identity within %s", pkg.NEVRA(), scope)
+	}
+
 	r := record{
 		Scope:        scope.String(),
-		PkgKey:       pkg.Key(),
+		Filename:     pkg.Filename,
 		Name:         pkg.Name,
 		EVR:          pkg.EVR(),
 		Architecture: pkg.Architecture,
@@ -121,18 +134,18 @@ func (s *PackageStore) Put(ctx context.Context, scope repoconfig.Scope, pkg *pkg
 	return nil
 }
 
-// Delete removes a package record. Deleting something already absent is not an
-// error, so a replayed S3 removal event is harmless.
-func (s *PackageStore) Delete(ctx context.Context, scope repoconfig.Scope, pkgKey string) error {
+// Delete removes the record for one object. Deleting something already absent
+// is not an error, so a replayed S3 removal event is harmless.
+func (s *PackageStore) Delete(ctx context.Context, scope repoconfig.Scope, filename string) error {
 	_, err := s.client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(s.table),
 		Key: map[string]types.AttributeValue{
-			"scope":  &types.AttributeValueMemberS{Value: scope.String()},
-			"pkgkey": &types.AttributeValueMemberS{Value: pkgKey},
+			"scope":    &types.AttributeValueMemberS{Value: scope.String()},
+			"filename": &types.AttributeValueMemberS{Value: filename},
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("store: deleting %s from %s: %w", pkgKey, scope, err)
+		return fmt.Errorf("store: deleting %s from %s: %w", filename, scope, err)
 	}
 	return nil
 }
@@ -175,17 +188,17 @@ func (s *PackageStore) List(ctx context.Context, scope repoconfig.Scope) ([]pkgm
 			body := r.Body
 			if r.BlobKey != "" {
 				if s.blobs == nil {
-					return nil, fmt.Errorf("store: %s in %s is stored at %s but no blob store is configured", r.PkgKey, scope, r.BlobKey)
+					return nil, fmt.Errorf("store: %s in %s is stored at %s but no blob store is configured", r.Filename, scope, r.BlobKey)
 				}
 				body, err = s.blobs.GetBlob(ctx, r.BlobKey)
 				if err != nil {
-					return nil, fmt.Errorf("store: reading %s for %s: %w", r.BlobKey, r.PkgKey, err)
+					return nil, fmt.Errorf("store: reading %s for %s: %w", r.BlobKey, r.Filename, err)
 				}
 			}
 
 			pkg, err := decodeRecord(body)
 			if err != nil {
-				return nil, fmt.Errorf("store: decoding %s in %s: %w", r.PkgKey, scope, err)
+				return nil, fmt.Errorf("store: decoding %s in %s: %w", r.Filename, scope, err)
 			}
 			out = append(out, *pkg)
 		}
