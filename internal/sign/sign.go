@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
@@ -64,6 +65,9 @@ type KeySource interface {
 type PGPSigner struct {
 	source KeySource
 
+	// Now overrides the clock used when selecting a valid signing key.
+	Now func() time.Time
+
 	once   sync.Once
 	entity *openpgp.Entity
 	err    error
@@ -72,6 +76,15 @@ type PGPSigner struct {
 // NewPGPSigner returns a signer that reads its key from source.
 func NewPGPSigner(source KeySource) *PGPSigner {
 	return &PGPSigner{source: source}
+}
+
+// now is the clock used to select a signing key that is currently valid.
+// Injectable so tests can reason about expiry.
+func (s *PGPSigner) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
 }
 
 func (s *PGPSigner) load(ctx context.Context) (*openpgp.Entity, error) {
@@ -126,8 +139,18 @@ func (s *PGPSigner) ClearSign(ctx context.Context, doc []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	// The entity's designated signing key, which for a conventionally
+	// structured key is a subkey rather than the primary. Signing with the
+	// primary instead produces a signature apt rejects as NO_PUBKEY even
+	// though the key it names is right there in the keyring, because the
+	// primary is not flagged for signing.
+	signer, ok := entity.SigningKey(s.now())
+	if !ok {
+		return nil, fmt.Errorf("sign: key %X has no usable signing key", entity.PrimaryKey.KeyId)
+	}
+
 	var buf bytes.Buffer
-	w, err := clearsign.Encode(&buf, entity.PrivateKey, signConfig())
+	w, err := clearsign.Encode(&buf, signer.PrivateKey, signConfig())
 	if err != nil {
 		return nil, fmt.Errorf("sign: starting clearsign: %w", err)
 	}
