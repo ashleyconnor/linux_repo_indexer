@@ -1,0 +1,24 @@
+Package: indexer-fixture
+Architecture: arm64
+Version: 1.0.0-1
+Priority: extra
+Section: default
+Maintainer: Fixture Maintainer <fixtures@example.com>
+Installed-Size: 32
+Depends: openssl
+Filename: pool/arm64/main/indexer-fixture_1.0.0-1_arm64.deb
+Size: 976
+MD5sum: 5df85fc1d6d5e7e9c720f3012f22571a
+SHA1: 8f6f447c27e06cf7cc85bf0a5a1cc619667d4ee4
+SHA256: 5031a6a9668c16dc3d191ae1bacfb80055582d63735a0353a70bcb8b11f3c1c4
+SHA512: 0c1602614b79a0b4e00807ab2733a04d4adba040c6810fb95655ca095735fcb988b4e6e483e551a3d7683a5c91e45cdd8c71e2381d14e61c26e4416b0dd6051a
+Homepage: https://example.com/indexer-fixture
+Description: indexer-fixture test fixture
+ This package exists only to exercise the repository indexer.
+ .
+ It carries a multi-line description so that continuation-line
+ handling is covered:
+   an indented line
+License: MPL-2.0
+Vendor: Fixture
+

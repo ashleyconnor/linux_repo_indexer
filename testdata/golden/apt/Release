@@ -1,0 +1,19 @@
+Architectures: amd64 arm64
+Codename: noble
+Components: main
+Date: Thu, 06 Aug 2026 03:56:20 +0000
+Label: HashiCorp
+Origin: HashiCorp
+Suite: noble
+MD5Sum:
+ 96b284c1c34fbf8d4a5dab1e6ffd8194             2565 main/binary-amd64/Packages
+ 0c8bb4b5d3825e652fd353107bfa7336              845 main/binary-arm64/Packages
+SHA1:
+ 0bc47a45feb3bcfcc05eb138b091b6741d6db2e8             2565 main/binary-amd64/Packages
+ 84e3fbb3ada4868cd6585f0d970fdbf82e3f6bda              845 main/binary-arm64/Packages
+SHA256:
+ eb28addc9b87d58b8055a22b51992f86a027e4104ae43db9af8ecc6bbff376ca             2565 main/binary-amd64/Packages
+ 971c95ad4a9ae141b069626c43c8ad381f0c01061b4372bb20f5e60d7682acad              845 main/binary-arm64/Packages
+SHA512:
+ be0235a429a431ad16c8e4b9e2d9f5202a61bce2a7381eb86920782886642e0e63bf2566a5bc8445723a0adde4ca71b0890a66dd1fe94de1e1391b133511efb7             2565 main/binary-amd64/Packages
+ 0c352ac54b3563888c93b97cc7114a051b695c6fb3202fb9d7691d444e92a12f0c39d8fcc97e65845881a42f86874867b30dc309bc2500aeff1734e947b2d9be              845 main/binary-arm64/Packages

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="3">
+<package pkgid="098c2d900703fc675660120ec718537f1bec471cb0c905c1bf809ae3c7c24b25" name="indexer-fixture" arch="aarch64">
+  <version epoch="0" ver="1.0.0" rel="1"/>
+  <file type="dir">/etc/indexer-fixture</file>
+  <file>/etc/indexer-fixture/indexer-fixture.conf</file>
+  <file>/usr/bin/indexer-fixture</file>
+  <file>/usr/share/doc/indexer-fixture/README</file>
+  <file type="ghost">/var/log/indexer-fixture.log</file>
+</package>
+<package pkgid="aceced712741f131e74496498350ef749ed4dd3658e589b8c2dda5c5bfe7544b" name="indexer-fixture" arch="aarch64">
+  <version epoch="0" ver="1.1.0" rel="1"/>
+  <file type="dir">/etc/indexer-fixture</file>
+  <file>/etc/indexer-fixture/indexer-fixture.conf</file>
+  <file>/usr/bin/indexer-fixture</file>
+  <file>/usr/share/doc/indexer-fixture/README</file>
+  <file type="ghost">/var/log/indexer-fixture.log</file>
+</package>
+<package pkgid="7e48130cd94d284f1ddeba6fa75cdf828b2591319e044d66b783d670ade7cc0d" name="indexer-other" arch="aarch64">
+  <version epoch="2" ver="2.5.0" rel="1"/>
+  <file type="dir">/etc/indexer-other</file>
+  <file>/etc/indexer-other/indexer-other.conf</file>
+  <file>/usr/bin/indexer-other</file>
+  <file>/usr/share/doc/indexer-other/README</file>
+  <file type="ghost">/var/log/indexer-other.log</file>
+</package>
+</filelists>

@@ -247,7 +247,15 @@ Each phase ends green and independently reviewable.
 - The two container suites are the real acceptance test: a stock `ubuntu:24.04` and a stock UBI9 install a package from the generated repository with signature verification enabled. If those pass, the index is correct in the only way that matters.
 - Before cutover: `seed diff` against the live Artifactory index must show no package-level differences.
 
-## Open items to settle during implementation
+## Settled during implementation
 
-- Whether `github.com/cavaliergopher/rpm` exposes the header byte range for `<rpm:header-range>`; if not, compute it inline during the parse pass.
+- **`<rpm:header-range>`** — `cavaliergopher/rpm` exposes `HeaderRange()`, and it is correct: for the x86_64 fixture it returns `start=4504 end=7581`, byte-identical to what `createrepo_c` records, as are `installed` and `archive` sizes.
+- **`primary.xml`, `filelists.xml` and `other.xml` are byte-identical to `createrepo_c`'s output** on both architectures, which the golden tests assert strictly. This required hand-writing the XML rather than using `encoding/xml`, which cannot emit self-closing elements, cannot control attribute order, and escapes newlines inside text.
+- **`repomd.xml` cannot be byte-identical and should not be.** The compressed checksum, size and the filename derived from that checksum all depend on the gzip encoder, and Go's output differs from zlib's for identical input. The test instead asserts that `open-checksum` and `open-size` match `createrepo_c` exactly — which proves the uncompressed content is identical — and that the compressed side is self-consistent, which is what dnf actually verifies.
+- **No SHA512 in `Packages`**, even though `apt-ftparchive` emits it. Records seeded from the existing index cannot have one: the live `Packages` carries only SHA1 and SHA256, and computing SHA512 would mean downloading all 3400 packages — the exact cost this design exists to avoid. Emitting it for freshly ingested packages but not seeded ones would be worse than omitting it consistently.
+- **`createrepo_c` emits `<packager></packager>`, `<url></url>` and `<rpm:vendor></rpm:vendor>` unconditionally** but omits dependency sections entirely when empty. Verified against a purpose-built minimal package rather than inferred.
+- **Compression must be deterministic.** gzip's header carries a timestamp by default, which would give identical content a different repodata filename on every publish and rewrite S3 needlessly.
+
+## Open items
+
 - Confirm the Fedora tree path — `fedora/42/x86_64/stable` returns 404, so its `$releasever` mapping differs from RHEL's. Irrelevant to v1 (RHEL 9 only) but needed before Fedora is added to `repos.yaml`.

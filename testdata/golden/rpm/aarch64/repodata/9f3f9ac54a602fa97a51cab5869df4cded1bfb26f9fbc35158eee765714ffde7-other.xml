@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<otherdata xmlns="http://linux.duke.edu/metadata/other" packages="3">
+<package pkgid="098c2d900703fc675660120ec718537f1bec471cb0c905c1bf809ae3c7c24b25" name="indexer-fixture" arch="aarch64">
+  <version epoch="0" ver="1.0.0" rel="1"/>
+  <changelog author="Fixture Maintainer &lt;fixtures@example.com&gt; - 0.9.0-1" date="1785758400">- Initial fixture package.</changelog>
+  <changelog author="Fixture Maintainer &lt;fixtures@example.com&gt; - 1.0.0-1" date="1785844800">- Second changelog entry, so other.xml has more than one.</changelog>
+</package>
+<package pkgid="aceced712741f131e74496498350ef749ed4dd3658e589b8c2dda5c5bfe7544b" name="indexer-fixture" arch="aarch64">
+  <version epoch="0" ver="1.1.0" rel="1"/>
+  <changelog author="Fixture Maintainer &lt;fixtures@example.com&gt; - 0.9.0-1" date="1785758400">- Initial fixture package.</changelog>
+  <changelog author="Fixture Maintainer &lt;fixtures@example.com&gt; - 1.1.0-1" date="1785844800">- Second changelog entry, so other.xml has more than one.</changelog>
+</package>
+<package pkgid="7e48130cd94d284f1ddeba6fa75cdf828b2591319e044d66b783d670ade7cc0d" name="indexer-other" arch="aarch64">
+  <version epoch="2" ver="2.5.0" rel="1"/>
+  <changelog author="Fixture Maintainer &lt;fixtures@example.com&gt; - 0.9.0-1" date="1785758400">- Initial fixture package.</changelog>
+  <changelog author="Fixture Maintainer &lt;fixtures@example.com&gt; - 2.5.0-1" date="1785844800">- Second changelog entry, so other.xml has more than one.</changelog>
+</package>
+</otherdata>

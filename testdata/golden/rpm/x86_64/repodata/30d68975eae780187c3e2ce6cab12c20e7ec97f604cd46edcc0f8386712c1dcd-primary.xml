@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="3">
+<package type="rpm">
+  <name>indexer-fixture</name>
+  <arch>x86_64</arch>
+  <version epoch="0" ver="1.0.0" rel="1"/>
+  <checksum type="sha256" pkgid="YES">29c5e419f3ed16999b23fac090a672ea1977eb915076fd32b7c494fa9705034d</checksum>
+  <summary>indexer-fixture test fixture</summary>
+  <description>This package exists only to exercise the repository indexer.
+
+It carries a multi-line description so that description handling
+is covered.</description>
+  <packager>Fixture Maintainer &lt;fixtures@example.com&gt;</packager>
+  <url>https://example.com/indexer-fixture</url>
+  <time file="1785988592" build="1785987922"/>
+  <size package="7792" installed="105" archive="808"/>
+  <location href="indexer-fixture-1.0.0-1.x86_64.rpm"/>
+  <format>
+    <rpm:license>MPL-2.0</rpm:license>
+    <rpm:vendor>Fixture</rpm:vendor>
+    <rpm:group>Applications/System</rpm:group>
+    <rpm:buildhost>16415a7af56e</rpm:buildhost>
+    <rpm:sourcerpm>indexer-fixture-1.0.0-1.src.rpm</rpm:sourcerpm>
+    <rpm:header-range start="4504" end="7581"/>
+    <rpm:provides>
+      <rpm:entry name="indexer-fixture" flags="EQ" epoch="0" ver="1.0.0" rel="1"/>
+      <rpm:entry name="indexer-fixture(x86-64)" flags="EQ" epoch="0" ver="1.0.0" rel="1"/>
+      <rpm:entry name="indexer-fixture-virtual" flags="EQ" epoch="0" ver="1.0.0"/>
+    </rpm:provides>
+    <rpm:requires>
+      <rpm:entry name="openssl"/>
+    </rpm:requires>
+    <file type="dir">/etc/indexer-fixture</file>
+    <file>/etc/indexer-fixture/indexer-fixture.conf</file>
+    <file>/usr/bin/indexer-fixture</file>
+  </format>
+</package>
+<package type="rpm">
+  <name>indexer-fixture</name>
+  <arch>x86_64</arch>
+  <version epoch="0" ver="1.1.0" rel="1"/>
+  <checksum type="sha256" pkgid="YES">9252bdc1a36378068eeb965fc02496a840866e74579f4db3cd6b5642a2d19f11</checksum>
+  <summary>indexer-fixture test fixture</summary>
+  <description>This package exists only to exercise the repository indexer.
+
+It carries a multi-line description so that description handling
+is covered.</description>
+  <packager>Fixture Maintainer &lt;fixtures@example.com&gt;</packager>
+  <url>https://example.com/indexer-fixture</url>
+  <time file="1785988592" build="1785987924"/>
+  <size package="7793" installed="105" archive="808"/>
+  <location href="indexer-fixture-1.1.0-1.x86_64.rpm"/>
+  <format>
+    <rpm:license>MPL-2.0</rpm:license>
+    <rpm:vendor>Fixture</rpm:vendor>
+    <rpm:group>Applications/System</rpm:group>
+    <rpm:buildhost>16415a7af56e</rpm:buildhost>
+    <rpm:sourcerpm>indexer-fixture-1.1.0-1.src.rpm</rpm:sourcerpm>
+    <rpm:header-range start="4504" end="7585"/>
+    <rpm:provides>
+      <rpm:entry name="indexer-fixture" flags="EQ" epoch="0" ver="1.1.0" rel="1"/>
+      <rpm:entry name="indexer-fixture(x86-64)" flags="EQ" epoch="0" ver="1.1.0" rel="1"/>
+      <rpm:entry name="indexer-fixture-virtual" flags="EQ" epoch="0" ver="1.1.0"/>
+    </rpm:provides>
+    <rpm:requires>
+      <rpm:entry name="openssl" flags="GE" epoch="0" ver="3.0.0"/>
+    </rpm:requires>
+    <file type="dir">/etc/indexer-fixture</file>
+    <file>/etc/indexer-fixture/indexer-fixture.conf</file>
+    <file>/usr/bin/indexer-fixture</file>
+  </format>
+</package>
+<package type="rpm">
+  <name>indexer-other</name>
+  <arch>x86_64</arch>
+  <version epoch="2" ver="2.5.0" rel="1"/>
+  <checksum type="sha256" pkgid="YES">6d091ced355cde069f710dd8d1adf19d52aab6b382bbef18ed24ee3f79a51928</checksum>
+  <summary>indexer-other test fixture</summary>
+  <description>This package exists only to exercise the repository indexer.
+
+It carries a multi-line description so that description handling
+is covered.</description>
+  <packager>Fixture Maintainer &lt;fixtures@example.com&gt;</packager>
+  <url>https://example.com/indexer-other</url>
+  <time file="1785988592" build="1785987927"/>
+  <size package="7780" installed="99" archive="796"/>
+  <location href="indexer-other-2.5.0-1.x86_64.rpm"/>
+  <format>
+    <rpm:license>MPL-2.0</rpm:license>
+    <rpm:vendor>Fixture</rpm:vendor>
+    <rpm:group>Applications/System</rpm:group>
+    <rpm:buildhost>16415a7af56e</rpm:buildhost>
+    <rpm:sourcerpm>indexer-other-2.5.0-1.src.rpm</rpm:sourcerpm>
+    <rpm:header-range start="4504" end="7569"/>
+    <rpm:provides>
+      <rpm:entry name="indexer-other" flags="EQ" epoch="2" ver="2.5.0" rel="1"/>
+      <rpm:entry name="indexer-other(x86-64)" flags="EQ" epoch="2" ver="2.5.0" rel="1"/>
+      <rpm:entry name="indexer-other-virtual" flags="EQ" epoch="0" ver="2.5.0"/>
+    </rpm:provides>
+    <rpm:requires>
+      <rpm:entry name="indexer-fixture" flags="GE" epoch="0" ver="1.0.0"/>
+    </rpm:requires>
+    <file type="dir">/etc/indexer-other</file>
+    <file>/etc/indexer-other/indexer-other.conf</file>
+    <file>/usr/bin/indexer-other</file>
+  </format>
+</package>
+</metadata>

@@ -1,0 +1,72 @@
+Package: indexer-fixture
+Architecture: amd64
+Version: 1.0.0-1
+Priority: extra
+Section: default
+Maintainer: Fixture Maintainer <fixtures@example.com>
+Installed-Size: 32
+Depends: openssl
+Filename: pool/amd64/main/indexer-fixture_1.0.0-1_amd64.deb
+Size: 976
+MD5sum: 93ecb2f64adf4b1e5375bd4cbfb05514
+SHA1: 3810ecc53d7842007ae55805d25028ece5194e82
+SHA256: c3a4f7040086df68314fff10532379fc0963558322f18cc26a87570901ff82dc
+SHA512: 4bb444702fcd23fdb6f595d0e600286bfa1dd244fc366758f2b2faa717b27ee9f29e69a0cdb0cda13c62bb4c7c5226b62f53ef5e089a0a907dead14e15041e2e
+Homepage: https://example.com/indexer-fixture
+Description: indexer-fixture test fixture
+ This package exists only to exercise the repository indexer.
+ .
+ It carries a multi-line description so that continuation-line
+ handling is covered:
+   an indented line
+License: MPL-2.0
+Vendor: Fixture
+
+Package: indexer-fixture
+Architecture: amd64
+Version: 1.1.0-1
+Priority: extra
+Section: default
+Maintainer: Fixture Maintainer <fixtures@example.com>
+Installed-Size: 32
+Depends: openssl (>= 3.0.0)
+Filename: pool/amd64/main/indexer-fixture_1.1.0-1_amd64.deb
+Size: 986
+MD5sum: fdcc18ef8c0f457b23e1c649d1e5053c
+SHA1: aed022ad7bef823b026edd975d41171c26eff11d
+SHA256: 6507c7e8688397ff3a96cb688295b922676fd59c28b36f2dac2852c5524e9879
+SHA512: 029cf509fbf4eb121d23f2cdd0b817650a5e3f4d9902091682b81e40b9a299605a657fda78e4ae251c93df67250d11ba5843ea7b9b6a538dceba1c3c87fced36
+Homepage: https://example.com/indexer-fixture
+Description: indexer-fixture test fixture
+ This package exists only to exercise the repository indexer.
+ .
+ It carries a multi-line description so that continuation-line
+ handling is covered:
+   an indented line
+License: MPL-2.0
+Vendor: Fixture
+
+Package: indexer-other
+Architecture: amd64
+Version: 2.5.0-1
+Priority: extra
+Section: default
+Maintainer: Fixture Maintainer <fixtures@example.com>
+Installed-Size: 32
+Depends: indexer-fixture (>= 1.0.0), passwd
+Filename: pool/amd64/main/indexer-other_2.5.0-1_amd64.deb
+Size: 998
+MD5sum: a71f877e0b5af20e942f10da0987760f
+SHA1: 35c32a2bba45cc186396fed73a20872cae3010cb
+SHA256: af969bdacfee5cf3b477ee931ed4239de1c0be3d7a1a5002c6cc752eae029e12
+SHA512: f971e6bb769ce917715344c519885e9b2a38cac5b90fcbc9b6eff1c4569dc19defd51f0bbf8050f477de167a80294f23f66aad2260f204deec41b2c5ec39ce29
+Homepage: https://example.com/indexer-other
+Description: indexer-other test fixture
+ This package exists only to exercise the repository indexer.
+ .
+ It carries a multi-line description so that continuation-line
+ handling is covered:
+   an indented line
+License: MPL-2.0
+Vendor: Fixture
+

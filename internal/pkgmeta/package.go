@@ -204,6 +204,25 @@ func (p *Package) Key() string {
 	return p.Name + "#" + p.EVR() + "#" + p.Architecture
 }
 
+// PkgID returns the checksum that yum metadata identifies the package by,
+// together with the algorithm name repodata spells it with.
+//
+// SHA256 is preferred. Records seeded from the existing index fall back to
+// SHA1, because the live primary.xml carries only a SHA1 pkgid and recomputing
+// a SHA256 would mean downloading every package — the exact cost the design
+// exists to avoid. Mixing algorithms across packages is legal: each <checksum>
+// element declares its own type, and dnf verifies whichever it is told.
+func (p *Package) PkgID() (digest, algorithm string) {
+	switch {
+	case p.SHA256 != "":
+		return p.SHA256, "sha256"
+	case p.SHA1 != "":
+		return p.SHA1, "sha1"
+	default:
+		return "", ""
+	}
+}
+
 // NEVRA is the conventional human-readable name for an RPM.
 func (p *Package) NEVRA() string {
 	if p.Epoch != 0 {
