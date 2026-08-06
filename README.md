@@ -94,6 +94,15 @@ seed rpm --bucket B --source https://rpm.releases.hashicorp.com \
          --tree RHEL/9/x86_64/stable
 ```
 
+Add `--dry-run` to see what would be written. Against an http source that
+needs no AWS access at all — no bucket, no tables, no credentials — so it is
+safe to run against production before anything is provisioned:
+
+```bash
+seed apt --source https://apt.releases.hashicorp.com \
+         --codename noble --component main --arch amd64 --dry-run
+```
+
 Before moving any traffic:
 
 ```bash

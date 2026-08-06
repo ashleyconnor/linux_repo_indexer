@@ -77,13 +77,17 @@ func main() {
 func usage() {
 	fmt.Fprint(os.Stderr, `seed populates the database from an already-published repository.
 
-  seed apt    --bucket B --source URL --component main --arch amd64 [--codename noble]
-  seed rpm    --bucket B --source URL --tree RHEL/9/x86_64/stable
-  seed verify --bucket B --scope SCOPE
-  seed diff   --bucket B --scope SCOPE --against URL
+  seed apt    --source URL --codename noble --component main --arch amd64
+  seed rpm    --source URL --tree RHEL/9/x86_64/stable
+  seed verify --scope SCOPE
+  seed diff   --scope SCOPE --against URL
 
---source may be an http(s) base URL or "s3", meaning read the index from the
-bucket itself. Add --dry-run to any seeding command to report without writing.
+--source is an http(s) base URL, or "s3" to read the index from the bucket.
+
+--bucket, --packages-table and --state-table (or BUCKET, PACKAGES_TABLE and
+STATE_TABLE) are required for anything that touches AWS. A --dry-run against an
+http source needs none of them: it reads the published index, prints what it
+found, and writes nothing.
 `)
 }
 
@@ -96,16 +100,45 @@ type common struct {
 }
 
 func (c *common) bind(fs *flag.FlagSet) {
-	fs.StringVar(&c.bucket, "bucket", os.Getenv("BUCKET"), "repository bucket")
+	fs.StringVar(&c.bucket, "bucket", os.Getenv("BUCKET"),
+		"repository bucket; needed to read an index with --source s3, to check objects exist, "+
+			"and to hold records too large for a DynamoDB item")
 	fs.StringVar(&c.table, "packages-table", os.Getenv("PACKAGES_TABLE"), "packages table")
 	fs.StringVar(&c.state, "state-table", os.Getenv("STATE_TABLE"), "publish state table")
 	fs.BoolVar(&c.dryRun, "dry-run", false, "report what would be written without writing it")
 }
 
-func (c *common) connect(ctx context.Context) (*awsx.Clients, error) {
-	if c.bucket == "" || c.table == "" || c.state == "" {
-		return nil, errors.New("seed: --bucket, --packages-table and --state-table are all required")
+// connect opens the AWS clients, or returns nil when the command will not
+// touch AWS at all.
+//
+// A dry run against an http source reads a published index and prints what it
+// found: it writes nothing and reads nothing from the bucket or the tables.
+// Demanding credentials and resource names for that is pure friction, and
+// invites people to invent placeholder values that then look real in a shell
+// history.
+//
+// Everything else needs the bucket, including the seeding runs that appear to
+// touch only DynamoDB: a package with a very large file list does not fit in
+// an item and spills to S3 instead.
+func (c *common) connect(ctx context.Context, source string) (*awsx.Clients, error) {
+	if c.dryRun && !readsFromBucket(source) {
+		return nil, nil
 	}
+
+	var missing []string
+	if c.bucket == "" {
+		missing = append(missing, "--bucket")
+	}
+	if c.table == "" {
+		missing = append(missing, "--packages-table")
+	}
+	if c.state == "" {
+		missing = append(missing, "--state-table")
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("seed: %s required", strings.Join(missing, ", "))
+	}
+
 	return awsx.Connect(ctx, awsx.Env{
 		Bucket:        c.bucket,
 		PackagesTable: c.table,
@@ -113,6 +146,10 @@ func (c *common) connect(ctx context.Context) (*awsx.Clients, error) {
 		ConfigKey:     "repos.yaml",
 	})
 }
+
+// readsFromBucket reports whether the index itself comes from S3 rather than
+// over http.
+func readsFromBucket(source string) bool { return source == "s3" }
 
 func runAPT(ctx context.Context, log *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("apt", flag.ExitOnError)
@@ -130,7 +167,7 @@ func runAPT(ctx context.Context, log *slog.Logger, args []string) error {
 		return errors.New("seed apt: --source, --codename and --arch are required")
 	}
 
-	clients, err := c.connect(ctx)
+	clients, err := c.connect(ctx, *source)
 	if err != nil {
 		return err
 	}
@@ -174,7 +211,7 @@ func runRPM(ctx context.Context, log *slog.Logger, args []string) error {
 	}
 	scope := repoconfig.RPMTreeScope(parts[0], parts[1], parts[2], parts[3])
 
-	clients, err := c.connect(ctx)
+	clients, err := c.connect(ctx, *source)
 	if err != nil {
 		return err
 	}
@@ -240,6 +277,13 @@ func write(ctx context.Context, log *slog.Logger, clients *awsx.Clients, c *comm
 		return nil
 	}
 
+	if clients == nil {
+		// Unreachable: connect only declines for a dry run, which returned
+		// above. Checked anyway so a future caller gets a diagnosis rather
+		// than a nil dereference.
+		return errors.New("seed: no AWS clients; --bucket, --packages-table and --state-table are required to write")
+	}
+
 	for i := range pkgs {
 		if err := clients.Packages.Put(ctx, scope, &pkgs[i]); err != nil {
 			return err
@@ -271,7 +315,7 @@ func runVerify(ctx context.Context, log *slog.Logger, args []string) error {
 	if err != nil {
 		return err
 	}
-	clients, err := c.connect(ctx)
+	clients, err := c.connect(ctx, "s3")
 	if err != nil {
 		return err
 	}
@@ -323,7 +367,7 @@ func runDiff(ctx context.Context, log *slog.Logger, args []string) error {
 	if scope.Kind != repoconfig.KindDebPool {
 		return errors.New("seed diff: only deb pool scopes are supported")
 	}
-	clients, err := c.connect(ctx)
+	clients, err := c.connect(ctx, "s3")
 	if err != nil {
 		return err
 	}
@@ -380,7 +424,10 @@ func runDiff(ctx context.Context, log *slog.Logger, args []string) error {
 
 // fetch reads an index file from an http(s) base URL or from the bucket.
 func fetch(ctx context.Context, clients *awsx.Clients, source, rel string) ([]byte, error) {
-	if source == "s3" {
+	if readsFromBucket(source) {
+		if clients == nil {
+			return nil, errors.New("seed: --source s3 needs --bucket")
+		}
 		return maybeGunzip(clients.S3.GetBlob(ctx, rel))
 	}
 	return fetchURL(ctx, strings.TrimSuffix(source, "/")+"/"+rel)
