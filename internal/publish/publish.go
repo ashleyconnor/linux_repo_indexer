@@ -328,7 +328,7 @@ func (p *Publisher) publishRPMTree(ctx context.Context, scope repoconfig.Scope) 
 		return nil, err
 	}
 
-	repodata, err := rpmmd.BuildRepodata(pkgs, p.now())
+	repodata, err := rpmmd.BuildRepodata(pkgs, repodataRevision(pkgs))
 	if err != nil {
 		return nil, err
 	}
@@ -372,6 +372,30 @@ func (p *Publisher) publishRPMTree(ctx context.Context, scope repoconfig.Scope) 
 		recorded = append(recorded, store.PublishedArtifact{Path: a.Path, Digests: a.Digests()})
 	}
 	return recorded, nil
+}
+
+// repodataRevision derives repomd.xml's revision from the packages themselves
+// rather than from the clock.
+//
+// This is what makes a republish of unchanged content a genuine no-op. With a
+// wall-clock revision every publish produced a new repomd.xml, and since
+// repomd.xml and its detached signature are two separate objects, each publish
+// opened a window in which a client could fetch the new repomd.xml against the
+// old repomd.xml.asc and reject the repository as corrupt. dnf hits that window
+// readily, because it fetches the pair back to back.
+//
+// Deriving it from the newest package means identical input yields byte-
+// identical output, the sync skips the write entirely, and the window only
+// exists when something has actually changed — the same exposure createrepo
+// has.
+func repodataRevision(pkgs []pkgmeta.Package) time.Time {
+	var newest int64
+	for i := range pkgs {
+		if ts := pkgs[i].UpdatedAt.Unix(); ts > newest {
+			newest = ts
+		}
+	}
+	return time.Unix(newest, 0).UTC()
 }
 
 // Sweep publishes every configured scope that has unpublished changes.

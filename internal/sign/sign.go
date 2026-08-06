@@ -8,6 +8,7 @@ package sign
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"fmt"
 	"io"
 	"sync"
@@ -15,7 +16,25 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/clearsign"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
+
+	_ "crypto/sha256" // registers SHA-256 for signing
 )
+
+// signConfig pins how signatures are produced.
+//
+// go-crypto adds a salt notation to signatures by default, a draft
+// crypto-refresh feature. GnuPG ignores the unknown notation and reports a
+// good signature, but librepo — which is what dnf actually verifies
+// repomd.xml.asc with — rejects the signature outright. Turning it off also
+// makes signatures deterministic.
+func signConfig() *packet.Config {
+	noSalt := false
+	return &packet.Config{
+		DefaultHash:                           crypto.SHA256,
+		NonDeterministicSignaturesViaNotation: &noSalt,
+	}
+}
 
 // A Signer produces the two signature forms a repository needs.
 type Signer interface {
@@ -108,7 +127,7 @@ func (s *PGPSigner) ClearSign(ctx context.Context, doc []byte) ([]byte, error) {
 	}
 
 	var buf bytes.Buffer
-	w, err := clearsign.Encode(&buf, entity.PrivateKey, nil)
+	w, err := clearsign.Encode(&buf, entity.PrivateKey, signConfig())
 	if err != nil {
 		return nil, fmt.Errorf("sign: starting clearsign: %w", err)
 	}
@@ -131,7 +150,7 @@ func (s *PGPSigner) DetachSign(ctx context.Context, doc []byte) ([]byte, error) 
 	}
 
 	var buf bytes.Buffer
-	if err := openpgp.ArmoredDetachSign(&buf, entity, bytes.NewReader(doc), nil); err != nil {
+	if err := openpgp.ArmoredDetachSign(&buf, entity, bytes.NewReader(doc), signConfig()); err != nil {
 		return nil, fmt.Errorf("sign: detached signing: %w", err)
 	}
 	buf.WriteByte('\n')
@@ -209,25 +228,30 @@ func VerifyClearSigned(publicKey, clearsigned []byte) ([]byte, error) {
 // matching public key into a container, exercising the real verification path
 // without a production key ever leaving Secrets Manager.
 func GenerateTestKey(name, email string) (source StaticKeySource, publicKey []byte, err error) {
-	entity, err := openpgp.NewEntity(name, "linux-repo-indexer test key", email, nil)
+	entity, err := openpgp.NewEntity(name, "linux-repo-indexer test key", email, signConfig())
 	if err != nil {
 		return StaticKeySource{}, nil, fmt.Errorf("sign: generating test key: %w", err)
 	}
 
-	private, err := armorEntity(entity, openpgp.PrivateKeyType, func(w io.Writer) error {
-		return entity.SerializePrivateWithoutSigning(w, nil)
+	// SerializePrivate computes the identity and subkey self-signatures as a
+	// side effect, and must run first. Without them GnuPG treats the public
+	// half as having no valid binding and rejects every signature made by the
+	// key — Go's own verifier is more forgiving, so this shows up only when a
+	// real dnf or apt is asked to check the repository.
+	private, err := armorEntity(openpgp.PrivateKeyType, func(w io.Writer) error {
+		return entity.SerializePrivate(w, signConfig())
 	})
 	if err != nil {
 		return StaticKeySource{}, nil, err
 	}
-	public, err := armorEntity(entity, openpgp.PublicKeyType, entity.Serialize)
+	public, err := armorEntity(openpgp.PublicKeyType, entity.Serialize)
 	if err != nil {
 		return StaticKeySource{}, nil, err
 	}
 	return StaticKeySource{Armored: private}, public, nil
 }
 
-func armorEntity(_ *openpgp.Entity, blockType string, write func(io.Writer) error) ([]byte, error) {
+func armorEntity(blockType string, write func(io.Writer) error) ([]byte, error) {
 	var buf bytes.Buffer
 	w, err := armor.Encode(&buf, blockType, nil)
 	if err != nil {

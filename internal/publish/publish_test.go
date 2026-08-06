@@ -1,6 +1,7 @@
 package publish
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -474,6 +475,47 @@ func TestPublishRPMTree(t *testing.T) {
 
 	if len(h.sync.pruned) != 1 || h.sync.pruned[0] != treeDir+"/repodata" {
 		t.Errorf("pruned %v, want the repodata directory", h.sync.pruned)
+	}
+}
+
+func TestRepublishingUnchangedPackagesIsByteIdentical(t *testing.T) {
+	// repomd.xml and repomd.xml.asc are two separate objects, so a publish
+	// that rewrites them opens a window where a client can fetch the new
+	// repomd.xml against the old signature and reject the repository. Keeping
+	// unchanged input byte-identical is what closes that window: the sync
+	// skips the write entirely.
+	ctx := context.Background()
+	scope := repoconfig.RPMTreeScope("RHEL", "9", "x86_64", "stable")
+	pkgs := []pkgmeta.Package{loadRPM(t, "indexer-fixture-1.0.0-1.x86_64.rpm")}
+
+	publishOnce := func(at time.Time) map[string][]byte {
+		h := newHarness(t)
+		h.pub.Now = func() time.Time { return at }
+		h.pkgs.byScope[scope.String()] = pkgs
+		h.markDirty(scope)
+		if err := h.pub.Publish(ctx, scope); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+		return h.sync.written
+	}
+
+	// Two publishes an hour apart, with the same packages.
+	first := publishOnce(publishTime)
+	second := publishOnce(publishTime.Add(time.Hour))
+
+	const repomd = "RHEL/9/x86_64/stable/repodata/repomd.xml"
+	if !bytes.Equal(first[repomd], second[repomd]) {
+		t.Errorf("repomd.xml changed between publishes of identical packages:\n%s\n---\n%s",
+			first[repomd], second[repomd])
+	}
+
+	for path, body := range first {
+		if path == repomd+".asc" {
+			continue // signatures embed their own creation time
+		}
+		if !bytes.Equal(body, second[path]) {
+			t.Errorf("%s changed between publishes of identical packages", path)
+		}
 	}
 }
 
