@@ -231,6 +231,16 @@ func (p *Package) NEVRA() string {
 	return fmt.Sprintf("%s-%s-%s.%s", p.Name, p.Version, p.Release, p.Architecture)
 }
 
+// String names the package the way its own ecosystem does, for logs and
+// operator-facing output. Rendering a .deb as a NEVRA produces nonsense like
+// "waypoint-0.9.1-.amd64", because Debian packages have no release field.
+func (p *Package) String() string {
+	if p.Format == FormatRPM {
+		return p.NEVRA()
+	}
+	return fmt.Sprintf("%s_%s_%s", p.Name, p.Version, p.Architecture)
+}
+
 // primaryFilePattern mirrors createrepo_c's PRIMARY_FILES: primary.xml carries
 // only the entries a client might resolve a file dependency against, and
 // filelists.xml carries everything.

@@ -95,7 +95,7 @@ func (s *PackageStore) Put(ctx context.Context, scope repoconfig.Scope, pkg *pkg
 	}
 
 	if pkg.Filename == "" {
-		return fmt.Errorf("store: %s has no filename, so it has no identity within %s", pkg.NEVRA(), scope)
+		return fmt.Errorf("store: %s has no filename, so it has no identity within %s", pkg.String(), scope)
 	}
 
 	r := record{
@@ -113,23 +113,23 @@ func (s *PackageStore) Put(ctx context.Context, scope repoconfig.Scope, pkg *pkg
 	} else {
 		if s.blobs == nil {
 			return fmt.Errorf("store: %s is %d bytes compressed, over the %d inline limit, and no blob store is configured",
-				pkg.NEVRA(), len(body), maxInlineBody)
+				pkg.String(), len(body), maxInlineBody)
 		}
 		r.BlobKey = path.Join(blobPrefix, index.SHA256Hex(body)+".json.gz")
 		if err := s.blobs.PutBlob(ctx, r.BlobKey, body); err != nil {
-			return fmt.Errorf("store: spilling %s to %s: %w", pkg.NEVRA(), r.BlobKey, err)
+			return fmt.Errorf("store: spilling %s to %s: %w", pkg.String(), r.BlobKey, err)
 		}
 	}
 
 	item, err := attributevalue.MarshalMap(r)
 	if err != nil {
-		return fmt.Errorf("store: encoding record for %s: %w", pkg.NEVRA(), err)
+		return fmt.Errorf("store: encoding record for %s: %w", pkg.String(), err)
 	}
 	if _, err := s.client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(s.table),
 		Item:      item,
 	}); err != nil {
-		return fmt.Errorf("store: writing %s to %s: %w", pkg.NEVRA(), scope, err)
+		return fmt.Errorf("store: writing %s to %s: %w", pkg.String(), scope, err)
 	}
 	return nil
 }
@@ -213,16 +213,16 @@ func (s *PackageStore) List(ctx context.Context, scope repoconfig.Scope) ([]pkgm
 func encodeRecord(pkg *pkgmeta.Package) ([]byte, error) {
 	raw, err := json.Marshal(pkg)
 	if err != nil {
-		return nil, fmt.Errorf("store: encoding %s: %w", pkg.NEVRA(), err)
+		return nil, fmt.Errorf("store: encoding %s: %w", pkg.String(), err)
 	}
 
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
 	if _, err := zw.Write(raw); err != nil {
-		return nil, fmt.Errorf("store: compressing %s: %w", pkg.NEVRA(), err)
+		return nil, fmt.Errorf("store: compressing %s: %w", pkg.String(), err)
 	}
 	if err := zw.Close(); err != nil {
-		return nil, fmt.Errorf("store: compressing %s: %w", pkg.NEVRA(), err)
+		return nil, fmt.Errorf("store: compressing %s: %w", pkg.String(), err)
 	}
 	return buf.Bytes(), nil
 }
