@@ -262,6 +262,43 @@ Each phase ends green and independently reviewable.
 - **go-crypto's salt notation must be disabled.** Signatures carry `salt@notations.openpgpjs.org` by default; GnuPG ignores it, and turning it off also makes signatures deterministic.
 - **The E2E suite needs `DOCKER_HOST` set explicitly** on a machine that also has Podman: testcontainers resolves `/var/run/docker.sock`, which may be a different daemon than the `docker` CLI is using, and the reaper then fails to find the `bridge` network. `make e2e` sets it.
 
+## Measured record sizes and read cost
+
+Measured against the live repositories, not estimated. Records are gzipped JSON,
+and package file paths compress about tenfold.
+
+| | mean | p50 | p95 | max |
+|---|---|---|---|---|
+| RPM record (n=3421) | 1,057 B | 610 B | 818 B | 59 KB |
+| deb record (n=3426) | 549 B | 536 B | 688 B | 702 B |
+
+The largest real record is 59 KB, well under the 300 KB inline limit, so the
+S3 spill path does not trigger on current data. It exists for a package with a
+kernel-sized file list.
+
+Publishing reads the whole scope. With the item overhead (`scope`, `filename`,
+`name`, `evr`, `arch`, `s3key`, `updatedAt` and their attribute names, ~220 B),
+a 10,000-package scope costs:
+
+- **12.8 MB read per publish**, about 1,559 RRU
+- **$0.0002 per publish** at us-east-1 on-demand rates; $0.58/month at 100
+  publishes a day
+- one-time seed of 10,000 records: ~$0.013
+
+Two things keep that number small. `Query` rounds the *aggregate* size to 4 KB
+rather than each item, so reading 10,000 sub-4 KB items costs 1,559 RRU instead
+of the 5,000 that individual `GetItem` calls would; and the query is
+eventually consistent, which halves it again. Consistency is not needed because
+the lease serialises writers and the generation check catches anything that
+landed late.
+
+**Cost is not the constraint — memory is.** At 6.7 KB of filelist XML per
+package, a 10,000-package scope generates roughly 67 MB of uncompressed
+`filelists.xml`, held in a buffer alongside its gzip output and the decoded
+records. That is why the publisher is provisioned at 2 GB. A scope approaching
+50,000 packages would need the XML generators to stream to a temp file rather
+than buffer, and would hit memory long before the read cost became noticeable.
+
 ## Open items
 
 - Confirm the Fedora tree path — `fedora/42/x86_64/stable` returns 404, so its `$releasever` mapping differs from RHEL's. Irrelevant to v1 (RHEL 9 only) but needed before Fedora is added to `repos.yaml`.
