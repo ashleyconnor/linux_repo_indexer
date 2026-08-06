@@ -8,8 +8,14 @@ terraform {
   required_version = ">= 1.6"
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = ">= 5.0"
+      source = "hashicorp/aws"
+
+      # Pinned to v5 for LocalStack only. From v6 the provider polls
+      # DescribeTable after creating a DynamoDB table and never accepts
+      # LocalStack's response, so the apply stalls until it gives up; v5
+      # creates the same table immediately. Production environments are not
+      # pinned, because they talk to real AWS.
+      version = "~> 5.100"
     }
   }
 }

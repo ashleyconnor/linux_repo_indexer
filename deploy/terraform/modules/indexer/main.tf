@@ -23,13 +23,19 @@ resource "aws_s3_bucket" "repo" {
   bucket = var.bucket_name
 }
 
+# Versioning is what makes an accidental delete or overwrite recoverable. The
+# index can always be regenerated from the database, but a package object is
+# the only copy of itself.
+#
+# The resource is omitted rather than set to Suspended when disabled, because
+# LocalStack's community edition does not implement enough of the API for the
+# provider to reconcile it.
 resource "aws_s3_bucket_versioning" "repo" {
+  count  = var.versioning_enabled ? 1 : 0
   bucket = aws_s3_bucket.repo.id
+
   versioning_configuration {
-    # Versioning is what makes an accidental delete or overwrite recoverable.
-    # The index can always be regenerated from the database, but a package
-    # object is the only copy of itself.
-    status = var.versioning_enabled ? "Enabled" : "Suspended"
+    status = "Enabled"
   }
 }
 
@@ -82,8 +88,14 @@ resource "aws_dynamodb_table" "packages" {
     type = "S"
   }
 
-  point_in_time_recovery {
-    enabled = var.point_in_time_recovery
+  # Omitted entirely when disabled: the provider reconciles this by polling
+  # DescribeContinuousBackups, which LocalStack's community edition does not
+  # implement, and the apply then hangs until it gives up.
+  dynamic "point_in_time_recovery" {
+    for_each = var.point_in_time_recovery ? [1] : []
+    content {
+      enabled = true
+    }
   }
 }
 
@@ -97,8 +109,14 @@ resource "aws_dynamodb_table" "state" {
     type = "S"
   }
 
-  point_in_time_recovery {
-    enabled = var.point_in_time_recovery
+  # Omitted entirely when disabled: the provider reconciles this by polling
+  # DescribeContinuousBackups, which LocalStack's community edition does not
+  # implement, and the apply then hangs until it gives up.
+  dynamic "point_in_time_recovery" {
+    for_each = var.point_in_time_recovery ? [1] : []
+    content {
+      enabled = true
+    }
   }
 }
 
