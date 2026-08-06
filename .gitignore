@@ -1,0 +1,17 @@
+/dist/
+/build/
+*.zip
+bootstrap
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!localstack.tfvars
+
+# Local test scratch
+/tmp/
+*.out
+coverage.html
