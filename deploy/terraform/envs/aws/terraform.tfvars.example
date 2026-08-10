@@ -1,0 +1,19 @@
+# Copy to terraform.tfvars and fill in. That file is gitignored, because the
+# bucket name and profile are specific to one deployment.
+
+region      = "us-east-1"
+profile     = "terraform"
+bucket_name = "CHANGE-ME-globally-unique"
+name_prefix = "linux-repo-indexer"
+
+# Serving the bucket straight from S3 makes every object world-readable, which
+# is what a public package repository is. Leave this off and front it with
+# CloudFront for anything that is not a test stack.
+public_read_policy = false
+
+publish_delay_seconds = 30
+
+tags = {
+  Project   = "linux-repo-indexer"
+  ManagedBy = "terraform"
+}
