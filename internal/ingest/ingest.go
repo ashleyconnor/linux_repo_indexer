@@ -53,7 +53,13 @@ type Queue interface {
 
 // Ingester handles one S3 object event at a time.
 type Ingester struct {
-	Config   *repoconfig.Config
+	Config *repoconfig.Config
+
+	// ConfigKey is the object holding repos.yaml. A write to it is the one
+	// event that changes what every scope should contain, so it is handled
+	// here rather than being classified and discarded.
+	ConfigKey string
+
 	Objects  ObjectReader
 	Packages PackageWriter
 	State    StateMarker
@@ -89,6 +95,10 @@ func (i *Ingester) log() *slog.Logger {
 // unconfigured architecture, a stray upload — is logged and skipped. Failing
 // instead would let one unrelated object block the queue behind it.
 func (i *Ingester) Created(ctx context.Context, key string) error {
+	if i.ConfigKey != "" && key == i.ConfigKey {
+		return i.configChanged(ctx)
+	}
+
 	scope, filename, err := i.Config.Classify(key)
 	if err != nil {
 		if errors.Is(err, repoconfig.ErrNotIndexed) {
@@ -138,6 +148,31 @@ func (i *Ingester) Removed(ctx context.Context, key string) error {
 	i.log().Info("removed", "key", key, "scope", scope.String())
 
 	return i.schedulePublish(ctx, scope)
+}
+
+// configChanged republishes everything after repos.yaml is written.
+//
+// A config change can alter what any scope should contain — a new codename
+// needs the pool indexes copied into it, and a changed origin or compression
+// setting rewrites output that no upload would otherwise touch. None of that
+// bumps a generation, so without marking the scopes dirty here they would read
+// back clean and the publisher would skip them.
+//
+// Republishing everything is affordable because an unchanged index is a no-op:
+// the sync skips content that is already present, so the cost is the rebuild,
+// not the upload.
+func (i *Ingester) configChanged(ctx context.Context) error {
+	scopes := i.Config.PublishScopes()
+
+	i.log().Info("repository config changed, republishing every scope",
+		"scopes", len(scopes))
+
+	for _, scope := range scopes {
+		if err := i.schedulePublish(ctx, scope); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (i *Ingester) schedulePublish(ctx context.Context, scope repoconfig.Scope) error {
