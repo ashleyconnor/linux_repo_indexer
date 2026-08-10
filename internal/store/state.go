@@ -33,7 +33,9 @@ type DynamoAPI interface {
 
 // ErrLeaseHeld is returned when another publisher holds a scope's lease. It is
 // not a failure: the caller should return its message to the queue and let the
-// current holder finish, which will pick up the newer generation anyway.
+// current holder finish. The holder cannot be assumed to cover the caller's
+// work, because it captured its generation before the caller's message was
+// sent.
 var ErrLeaseHeld = errors.New("store: scope lease is held by another publisher")
 
 // State is one scope's publish state.
