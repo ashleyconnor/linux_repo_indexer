@@ -2,8 +2,8 @@
 //
 // It answers two triggers: SQS messages naming a scope that has just changed,
 // and a scheduled sweep that republishes anything left dirty. The sweep is the
-// backstop for a lost message or a codename added to repos.yaml with no upload
-// to trigger it.
+// backstop for work that reached the dead-letter queue, which leaves a scope
+// dirty with no message pending and which nothing else would notice.
 package main
 
 import (

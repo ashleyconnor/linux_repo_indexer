@@ -80,7 +80,13 @@ variable "publish_max_concurrency" {
 variable "sweep_schedule" {
   description = "Schedule for the backstop sweep that republishes anything left dirty."
   type        = string
-  default     = "rate(5 minutes)"
+
+  # Hourly rather than every few minutes: the paths that used to depend on the
+  # sweep for timeliness now recover on their own. A contended publish requeues
+  # its message, and a config change is announced by its own S3 event. What is
+  # left is work that exhausted its retries and reached the dead-letter queue,
+  # which nothing else notices and which is not urgent.
+  default = "rate(1 hour)"
 }
 
 variable "versioning_enabled" {

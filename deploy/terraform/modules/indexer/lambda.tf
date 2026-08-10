@@ -184,8 +184,10 @@ resource "aws_lambda_event_source_mapping" "publish" {
 resource "aws_cloudwatch_event_rule" "sweep" {
   name = "${local.name}-sweep"
 
-  # The backstop: republishes anything left dirty by a lost message, and picks
-  # up a codename added to repos.yaml with no upload to trigger it.
+  # The backstop for work that ran out of retries and reached the dead-letter
+  # queue: the scope is still dirty, no message remains to say so, and nothing
+  # else would ever notice. SQS does not lose messages, so this is covering our
+  # own failures rather than the queue's.
   schedule_expression = var.sweep_schedule
 }
 
