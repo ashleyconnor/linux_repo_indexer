@@ -154,10 +154,18 @@ func (f *fakeSync) paths() []string {
 	return out
 }
 
-type fakeQueue struct{ enqueued []string }
+type fakeQueue struct {
+	enqueued []string
+	delays   []time.Duration
+	err      error
+}
 
-func (q *fakeQueue) EnqueuePublish(_ context.Context, scope repoconfig.Scope, _ time.Duration) error {
+func (q *fakeQueue) EnqueuePublish(_ context.Context, scope repoconfig.Scope, delay time.Duration) error {
+	if q.err != nil {
+		return q.err
+	}
 	q.enqueued = append(q.enqueued, scope.String())
+	q.delays = append(q.delays, delay)
 	return nil
 }
 
@@ -547,13 +555,52 @@ func TestPublishYieldsWhenLeaseIsHeld(t *testing.T) {
 	h.markDirty(scope)
 	h.state.leaseHeldOn[scope.String()] = true
 
-	// Not an error: whoever holds the lease reads the current generation, so
-	// our work is already covered.
+	// Not an error: the holder is mid-build and this publisher must not
+	// interleave with it.
 	if err := h.pub.Publish(ctx, scope); err != nil {
 		t.Fatalf("Publish: %v", err)
 	}
 	if len(h.sync.written) != 0 {
 		t.Errorf("must not write while another publisher holds the lease: %v", h.sync.paths())
+	}
+}
+
+func TestPublishRequeuesWhenLeaseIsHeld(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	scope := repoconfig.DebPoolScope("main", "amd64")
+
+	h.markDirty(scope)
+	h.state.leaseHeldOn[scope.String()] = true
+
+	// The holder captured its generation before this change existed, so
+	// yielding without requeuing would delete the only message that knows
+	// about it and leave the scope dirty until the sweep.
+	if err := h.pub.Publish(ctx, scope); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+
+	if got := h.queue.enqueued; !slices.Equal(got, []string{scope.String()}) {
+		t.Fatalf("enqueued %v, want exactly one message for %s", got, scope)
+	}
+	if got := h.queue.delays[0]; got != contentionDelay {
+		t.Errorf("delay = %v, want %v so the holder has time to finish", got, contentionDelay)
+	}
+}
+
+func TestPublishReportsAFailedRequeue(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	scope := repoconfig.DebPoolScope("main", "amd64")
+
+	h.markDirty(scope)
+	h.state.leaseHeldOn[scope.String()] = true
+	h.queue.err = errors.New("sqs is unavailable")
+
+	// Swallowing this would lose the change silently, which is the whole bug
+	// being fixed. Failing returns the message to the queue instead.
+	if err := h.pub.Publish(ctx, scope); err == nil {
+		t.Fatal("Publish should fail when the requeue fails")
 	}
 }
 

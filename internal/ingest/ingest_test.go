@@ -118,6 +118,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	h.ing = &Ingester{
 		Config:       cfg,
+		ConfigKey:    "repos.yaml",
 		Objects:      h.objs,
 		Packages:     h.pkgs,
 		State:        h.state,
@@ -250,6 +251,48 @@ func TestCreatedSchedulesCoalescedPublish(t *testing.T) {
 	}
 }
 
+func TestCreatedRepublishesEveryScopeWhenTheConfigChanges(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+
+	// A codename added to repos.yaml has no upload to trigger it, and its
+	// scopes read back clean because nothing has ever bumped their
+	// generation. Marking them dirty here is what gives the publisher
+	// something to do.
+	if err := h.ing.Created(ctx, "repos.yaml"); err != nil {
+		t.Fatalf("Created: %v", err)
+	}
+
+	want := []string{"deb/main/amd64", "release/noble", "rpm/RHEL/9/x86_64/stable"}
+
+	dirtied := slices.Clone(h.state.dirtied)
+	slices.Sort(dirtied)
+	if !slices.Equal(dirtied, want) {
+		t.Errorf("marked %v dirty, want every configured scope %v", dirtied, want)
+	}
+
+	enqueued := slices.Clone(h.queue.scopes)
+	slices.Sort(enqueued)
+	if !slices.Equal(enqueued, want) {
+		t.Errorf("enqueued %v, want every configured scope %v", enqueued, want)
+	}
+}
+
+func TestCreatedDoesNotReadTheConfigAsAPackage(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+
+	// The object is never fetched: the handler has already loaded the new
+	// config for this invocation, so parsing it here would be a second read
+	// of a file that is not a package.
+	if err := h.ing.Created(ctx, "repos.yaml"); err != nil {
+		t.Fatalf("Created: %v", err)
+	}
+	if len(h.pkgs.put) != 0 {
+		t.Errorf("stored %d packages for the config object, want none", len(h.pkgs.put))
+	}
+}
+
 func TestCreatedSkipsUnindexedKeys(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
@@ -261,7 +304,6 @@ func TestCreatedSkipsUnindexedKeys(t *testing.T) {
 		"dists/noble/InRelease",
 		"RHEL/9/x86_64/stable/repodata/repomd.xml",
 		"pool/riscv64/main/thing_1.0_riscv64.deb",
-		"repos.yaml",
 	}
 
 	for _, key := range keys {

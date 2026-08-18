@@ -183,5 +183,17 @@ resource "aws_s3_bucket_notification" "ingest" {
     }
   }
 
+  # Writing repos.yaml is what adds a codename or changes how every index is
+  # built. Nothing uploads a package to announce it, so the config object
+  # announces itself: ingest marks every scope dirty and the publisher rebuilds.
+  #
+  # Removal is deliberately not subscribed — there is no config to republish
+  # from, and the existing tree is left alone until someone retires it.
+  queue {
+    queue_arn     = aws_sqs_queue.ingest.arn
+    events        = ["s3:ObjectCreated:*"]
+    filter_prefix = var.config_key
+  }
+
   depends_on = [aws_sqs_queue_policy.ingest]
 }

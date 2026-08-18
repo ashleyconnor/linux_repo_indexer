@@ -9,7 +9,13 @@ bootstrap
 *.tfstate
 *.tfstate.*
 *.tfvars
+!*.tfvars.example
 !localstack.tfvars
+
+# Saved plans embed the full resource detail, including values marked
+# sensitive, and are regenerated on demand.
+tfplan
+*.tfplan
 
 # Local test scratch
 /tmp/

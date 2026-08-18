@@ -7,6 +7,7 @@
 //
 //	repoadmin retire --bucket b --scope rpm/RHEL/8/x86_64/stable --confirm
 //	repoadmin status --bucket b
+//	repoadmin clone --bucket b --from RHEL/9 --to RHEL/10 --confirm
 package main
 
 import (
@@ -15,6 +16,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -23,6 +25,7 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/ashleyconnor/linux-repo-indexer/internal/awsx"
+	"github.com/ashleyconnor/linux-repo-indexer/internal/clone"
 	"github.com/ashleyconnor/linux-repo-indexer/internal/repoconfig"
 )
 
@@ -39,6 +42,8 @@ func main() {
 		err = runRetire(ctx, os.Args[2:])
 	case "status":
 		err = runStatus(ctx, os.Args[2:])
+	case "clone":
+		err = runClone(ctx, os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -59,9 +64,14 @@ func usage() {
 
   repoadmin retire --bucket B --scope SCOPE [--confirm]
   repoadmin status --bucket B
+  repoadmin clone  --bucket B --from RHEL/9 --to RHEL/10 [--confirm]
 
 retire deletes a scope's published index and its stored records. It does not
 delete package objects: those are the only copy of themselves.
+
+clone carries a yum version's packages forward into a new one, which is what a
+self-contained tree needs and a shared deb pool does not. It reports the plan
+and copies nothing until --confirm.
 `)
 }
 
@@ -167,6 +177,111 @@ func runRetire(ctx context.Context, args []string) error {
 	return nil
 }
 
+func runClone(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("clone", flag.ExitOnError)
+	var f flags
+	f.bind(fs)
+	fromArg := fs.String("from", "", "version to copy packages from, as <distro>/<version>")
+	toArg := fs.String("to", "", "version to copy packages into, as <distro>/<version>")
+	confirm := fs.Bool("confirm", false, "actually copy, rather than reporting what would be copied")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	from, err := clone.ParseVersion(*fromArg)
+	if err != nil {
+		return err
+	}
+	to, err := clone.ParseVersion(*toArg)
+	if err != nil {
+		return err
+	}
+
+	clients, err := f.connect(ctx)
+	if err != nil {
+		return err
+	}
+	cfg, err := clients.LoadRepoConfig(ctx)
+	if err != nil {
+		return err
+	}
+
+	pairs, err := clone.Trees(cfg, from, to)
+	if err != nil {
+		return err
+	}
+
+	copier := &bucketCopier{clients: clients, bucket: f.bucket}
+	plans, err := clone.PlanAll(ctx, copier, pairs)
+	if err != nil {
+		return err
+	}
+
+	var total int
+	for _, p := range plans {
+		total += len(p.Copies)
+		detail := fmt.Sprintf("%d to copy", len(p.Copies))
+		if p.Note != "" {
+			detail += " (" + p.Note + ")"
+		}
+		fmt.Printf("%-28s -> %-28s %s\n", p.FromDir, p.ToDir, detail)
+	}
+	fmt.Printf("\n%d objects across %d trees.\n", total, len(plans))
+
+	if total == 0 {
+		fmt.Println("Nothing to do.")
+		return nil
+	}
+	// No interactive prompt, unlike retire: this only adds objects, and adding
+	// the same package twice is a no-op. Carrying a version forward belongs in
+	// CI, where there is nobody to answer one.
+	if !*confirm {
+		fmt.Println("\nNothing copied. Re-run with --confirm to proceed.")
+		return nil
+	}
+
+	copied, err := clone.Execute(ctx, copier, plans)
+	if err != nil {
+		return fmt.Errorf("%w (%d objects copied before the failure)", err, copied)
+	}
+
+	fmt.Printf("\nCopied %d objects into %s.\n\n", copied, to)
+	fmt.Print(`Each copy is an S3 event, so ingest is still catching up. To watch it drain:
+
+  aws sqs get-queue-attributes --queue-url "$INGEST_QUEUE_URL" \
+    --attribute-names ApproximateNumberOfMessages
+
+When the queue is empty, confirm every record resolves to an object:
+
+`)
+	for _, p := range plans {
+		if len(p.Copies) > 0 {
+			fmt.Printf("  seed verify --scope %s\n", p.To)
+		}
+	}
+	return nil
+}
+
+// bucketCopier is object storage as the clone needs it: server-side copies, so
+// the packages never travel through this machine.
+type bucketCopier struct {
+	clients *awsx.Clients
+	bucket  string
+}
+
+func (b *bucketCopier) List(ctx context.Context, prefix string) ([]string, error) {
+	return listUnder(ctx, b.clients, b.bucket, prefix)
+}
+
+func (b *bucketCopier) Copy(ctx context.Context, srcKey, dstKey string) error {
+	_, err := b.clients.S3.Client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(b.bucket),
+		Key:        aws.String(dstKey),
+		CopySource: aws.String(url.PathEscape(b.bucket + "/" + srcKey)),
+	})
+	return err
+}
+
 func runStatus(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("status", flag.ExitOnError)
 	var f flags
@@ -244,8 +359,8 @@ func listUnder(ctx context.Context, clients *awsx.Clients, bucket, dir string) (
 	}
 }
 
-// askForConfirmation requires the scope to be typed out, so this cannot be
-// completed by holding down the return key.
+// askForConfirmation requires the scope to be typed out, so a destructive
+// operation cannot be completed by holding down the return key.
 func askForConfirmation(scope string) bool {
 	fmt.Printf("Type the scope to confirm deletion (%s): ", scope)
 	line, err := bufio.NewReader(os.Stdin).ReadString('\n')

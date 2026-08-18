@@ -59,6 +59,15 @@ type StateAPI interface {
 // partway through.
 const staleGrace = 7 * 24 * time.Hour
 
+// contentionDelay is how long a publisher that loses the lease waits before
+// its message is delivered again.
+//
+// The lease can be held for as long as the publish timeout, so a contended
+// message may be re-delivered many times before it wins. That is cheap: each
+// attempt is one no-op invocation, and the requeue is one-for-one with the
+// message it replaces, so a burst cannot amplify itself.
+const contentionDelay = 30 * time.Second
+
 // Publisher rebuilds and uploads the index for one scope at a time.
 type Publisher struct {
 	Config   *repoconfig.Config
@@ -111,10 +120,17 @@ func (p *Publisher) Publish(ctx context.Context, scope repoconfig.Scope) error {
 	state, err := p.State.AcquireLease(ctx, scope, p.Owner, p.LeaseTTL, p.now())
 	if err != nil {
 		if errors.Is(err, store.ErrLeaseHeld) {
-			// Whoever holds it will read the current generation, so our work
-			// is already covered.
-			p.log().Info("scope is being published by another worker", "scope", scope.String())
-			return nil
+			// The holder captured its generation before this message was sent,
+			// so it may not cover the change that prompted us. Hand the
+			// message back to the queue rather than letting it be deleted:
+			// dropping it here is what used to leave a scope dirty with no
+			// pending publish, recoverable only by the sweep.
+			p.log().Info("scope is being published by another worker, requeuing",
+				"scope", scope.String())
+			if p.Queue == nil {
+				return nil
+			}
+			return p.Queue.EnqueuePublish(ctx, scope, contentionDelay)
 		}
 		return err
 	}
@@ -400,9 +416,14 @@ func repodataRevision(pkgs []pkgmeta.Package) time.Time {
 
 // Sweep publishes every configured scope that has unpublished changes.
 //
-// The scheduled run calls it as a backstop: if a publish message is lost, or a
-// scope was added to repos.yaml without any upload to trigger it, this is what
-// notices.
+// The scheduled run calls it as a backstop for work that exhausted its retries
+// and reached the dead-letter queue: the scope is left dirty with no message
+// pending, and without this nothing would republish it short of an operator
+// redriving the queue by hand.
+//
+// It only sees scopes whose generation has moved. A scope that has never been
+// written to reads back clean, so this cannot discover a codename added to
+// repos.yaml — the write to the config object is what triggers that.
 func (p *Publisher) Sweep(ctx context.Context) error {
 	var errs []error
 	for _, scope := range p.Config.PublishScopes() {

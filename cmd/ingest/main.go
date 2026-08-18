@@ -60,6 +60,7 @@ func (h *handler) handle(ctx context.Context, event events.SQSEvent) (events.SQS
 
 	ing := &ingest.Ingester{
 		Config:       cfg,
+		ConfigKey:    h.clients.Env.ConfigKey,
 		Objects:      h.clients.S3,
 		Packages:     h.clients.Packages,
 		State:        h.clients.State,
